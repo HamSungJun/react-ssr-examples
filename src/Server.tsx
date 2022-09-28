@@ -10,7 +10,11 @@ const helmetContext = {} as { helmet: HelmetServerState };
 const ServerApp = ({ url }: { url: string }) => {
   return (
     <html lang="ko">
-      <head></head>
+      <head>
+        <meta charSet="UTF-8" />
+        <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+      </head>
       <body>
         <div id="root">
           <HelmetProvider context={helmetContext}>
@@ -59,6 +63,16 @@ export function renderFromServer(url: string) {
       if (documentHead) {
         documentHead.innerHTML = `
           ${documentHead.innerHTML}
+          ${`
+            <script type="module">
+              import RefreshRuntime from "/@react-refresh"
+              RefreshRuntime.injectIntoGlobalHook(window)
+              window.$RefreshReg$ = () => {}
+              window.$RefreshSig$ = () => (type) => type
+              window.__vite_plugin_react_preamble_installed__ = true
+            </script>
+          `}
+          ${`<script type="module" src="/@vite/client"></script>`}
           ${helmet.title.toString()}
           ${helmet.meta.toString()}
           ${helmet.link.toString()}
@@ -68,8 +82,9 @@ export function renderFromServer(url: string) {
 
       if (documentBody) {
         documentBody.innerHTML = `
-          
-        `;
+          ${documentBody.innerHTML}
+          <script type="module" src="/src/Client.tsx"></script>
+        `.trim();
       }
 
       resolve(document.toString());
