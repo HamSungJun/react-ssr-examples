@@ -1,26 +1,12 @@
+import { Suspense } from "react";
 import { Helmet } from "react-helmet-async";
-import { useState, useEffect } from "react";
-
-interface ITodo {
-  userId: number;
-  id: number;
-  title: string;
-  completed: boolean;
-}
-
-const fetchTodos = async (): Promise<ITodo[]> => {
-  const response = await fetch("https://jsonplaceholder.typicode.com/todos");
-  return await response.json();
-};
+import { useTodosQuery } from "../queries";
 
 export default function About() {
-  const [todos, setTodos] = useState<ITodo[]>([]);
-
-  useEffect(() => {
-    fetchTodos().then((todos) => {
-      setTodos(todos);
-    });
-  }, []);
+  const { data } = useTodosQuery();
+  const onClick = () => {
+    console.log("click");
+  };
   return (
     <>
       <Helmet>
@@ -28,11 +14,8 @@ export default function About() {
       </Helmet>
       <h1>About</h1>
       <div>
-        <ul>
-          {todos.map((todo) => (
-            <li key={todo.id}>{todo.title}</li>
-          ))}
-        </ul>
+        <button onClick={onClick}>click</button>
+        <ul>{JSON.stringify(data)}</ul>
       </div>
     </>
   );

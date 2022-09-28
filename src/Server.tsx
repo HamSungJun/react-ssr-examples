@@ -4,46 +4,65 @@ import { StaticRouter } from "react-router-dom/server";
 import { PipeableStream, renderToPipeableStream } from "react-dom/server";
 import { Writable } from "node:stream";
 import { parse } from "node-html-parser";
+import {
+  QueryClient,
+  QueryClientProvider,
+  Hydrate,
+  dehydrate,
+} from "@tanstack/react-query";
 
-const helmetContext = {} as { helmet: HelmetServerState };
-
-const ServerApp = ({ url }: { url: string }) => {
-  return (
+const renderServerApp = async ({ url }: { url: string }) => {
+  const queryClient = new QueryClient();
+  const dehydratedState = dehydrate(queryClient);
+  const helmetContext = {} as { helmet: HelmetServerState };
+  const ServerApp = () => (
     <html lang="ko">
       <head>
         <meta charSet="UTF-8" />
-        <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+        <meta httpEquiv="X-UA-Compatible" content="IE=edge" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
       </head>
       <body>
         <div id="root">
           <HelmetProvider context={helmetContext}>
-            <StaticRouter location={url}>
-              <App />
-            </StaticRouter>
+            <QueryClientProvider client={queryClient}>
+              <Hydrate state={dehydratedState}>
+                <StaticRouter location={url}>
+                  <App />
+                </StaticRouter>
+              </Hydrate>
+            </QueryClientProvider>
           </HelmetProvider>
         </div>
       </body>
     </html>
   );
-};
 
-const getPipeableStream = (url: string): Promise<PipeableStream> => {
-  return new Promise((resolve, reject) => {
-    const stream = renderToPipeableStream(<ServerApp url={url} />, {
-      onAllReady() {
-        resolve(stream);
-      },
-      onShellError(error) {
-        reject(error);
-      },
+  const renderStream = (): Promise<PipeableStream> => {
+    return new Promise((resolve, reject) => {
+      const stream = renderToPipeableStream(<ServerApp />, {
+        onAllReady() {
+          resolve(stream);
+        },
+        onShellError(error) {
+          reject(error);
+        },
+      });
     });
-  });
+  };
+
+  return {
+    stream: await renderStream(),
+    helmetContext,
+    queryClient,
+  };
 };
 
 export function renderFromServer(url: string) {
   return new Promise(async (resolve, reject) => {
-    const allResolvedStream = await getPipeableStream(url);
+    const { stream, helmetContext, queryClient } = await renderServerApp({
+      url,
+    });
     const streamBuffer: Uint8Array[] = [];
     const writer = new Writable({
       write(chunk, _, callback) {
@@ -73,6 +92,7 @@ export function renderFromServer(url: string) {
             </script>
           `}
           ${`<script type="module" src="/@vite/client"></script>`}
+          ${`<script type="module" src="/src/Client.tsx"></script>`}
           ${helmet.title.toString()}
           ${helmet.meta.toString()}
           ${helmet.link.toString()}
@@ -81,14 +101,17 @@ export function renderFromServer(url: string) {
       }
 
       if (documentBody) {
-        documentBody.innerHTML = `
-          ${documentBody.innerHTML}
-          <script type="module" src="/src/Client.tsx"></script>
-        `.trim();
+        documentBody.innerHTML += `
+          ${`<script>window.__REACT_QUERY_STATE__ = ${JSON.stringify(
+            dehydrate(queryClient)
+          )}</script>`}
+        `;
       }
 
       resolve(document.toString());
+      queryClient.clear();
     });
-    allResolvedStream.pipe(writer);
+    stream.pipe(writer);
+    writer.end();
   });
 }

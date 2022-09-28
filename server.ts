@@ -1,5 +1,12 @@
 import express from "express";
 import { createServer as createViteServer } from "vite";
+import fetch, { Headers } from "node-fetch";
+
+if (!globalThis.fetch) {
+  const gt = globalThis as any;
+  gt.fetch = fetch;
+  gt.Headers = Headers;
+}
 
 async function createServer() {
   const app = express();
@@ -16,6 +23,7 @@ async function createServer() {
     try {
       const { renderFromServer } = await vite.ssrLoadModule("/src/Server.tsx");
       const resultHtml = await renderFromServer(url);
+      console.log(resultHtml);
       res
         .status(200)
         .set({ "Content-Type": "text/html; charset=utf-8" })
